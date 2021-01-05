@@ -1,0 +1,58 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Amazon EMR Studio - Sample Cluster
+
+Parameters:
+  Deployment:
+    Type: String
+    # Default: DEPLOYMENT_DEFAULT
+
+  # EMR Studio sends the following bogus parameters to the stack when a
+  # cluster is provisioned via UI. We must expect to receive this but
+  # just ignore the value
+
+  SubnetId:
+    Type: String
+    Default: ignore
+
+  ClusterName:
+    Type: String
+    Default: ignore
+
+Resources:
+  EMRCluster:
+    Type: AWS::EMR::Cluster
+    Properties:
+      Applications:
+        - Name: Spark
+        - Name: Livy
+        - Name: JupyterEnterpriseGateway
+        - Name: Hive
+      Instances:
+        # CoreInstanceGroup:
+        #   InstanceCount: 1
+        #   InstanceType: m4.large
+        #   Market: SPOT
+        Ec2SubnetId: !ImportValue infra-vpc-sn-public-a
+        EmrManagedMasterSecurityGroup:
+          Fn::ImportValue: !Sub ${Deployment}-infra-sg-MasterSecurityGroup
+        EmrManagedSlaveSecurityGroup:
+          Fn::ImportValue: !Sub ${Deployment}-infra-sg-WorkerSecurityGroup
+        MasterInstanceGroup:
+          InstanceCount: 1
+          InstanceType: m5.xlarge
+          Market: SPOT
+        # ServiceAccessSecurityGroup:
+        #   Fn::ImportValue: !Sub ${Deployment}-infra-sg-ServiceAccessSecurityGroup
+      JobFlowRole:
+        Fn::ImportValue: !Sub ${Deployment}-infra-iam-EMRInstanceRoleArn
+      LogUri:
+        Fn::Sub:
+        - 's3://${Bucket}/${Deployment}/emr/'
+        - { Bucket: !ImportValue 'infra-buckets-LogBucket' }
+      Name: !Sub '${AWS::StackName}'
+      ReleaseLabel: emr-6.2.0
+      ServiceRole:
+        Fn::ImportValue: !Sub ${Deployment}-infra-iam-EMRServiceRoleArn
+      Tags:
+        - { Key: Name, Value: !Sub '${AWS::StackName}' }
+      VisibleToAllUsers: true

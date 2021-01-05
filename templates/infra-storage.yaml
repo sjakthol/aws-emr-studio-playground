@@ -1,0 +1,37 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Amazon EMR Studio - Storage buckets
+
+Parameters:
+  Deployment:
+    Type: String
+
+Resources:
+  StudioResources:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      BucketName: !Sub '${Deployment}-studio-resources'
+      LifecycleConfiguration:
+        Rules:
+          - Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 1
+          - Status: Enabled
+            NoncurrentVersionExpirationInDays: 7
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerPreferred
+      Tags:
+        - { Key: Name, Value: !Sub '${Deployment}-studio-resources' }
+      VersioningConfiguration:
+        Status: Enabled
+
+Outputs:
+  StudioResources:
+    Description: Bucker for EMR Studio Workspace and Notebook Storage
+    Value: !Ref StudioResources
+    Export:
+      Name: !Sub '${AWS::StackName}-studio-resources'

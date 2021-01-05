@@ -1,0 +1,398 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Amazon EMR Studio - IAM Roles and Policies
+
+Parameters:
+  Deployment:
+    Type: String
+
+Resources:
+
+  ## EMR Studio Roles ##
+
+  EMRStudioServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: elasticmapreduce.amazonaws.com
+            Action: sts:AssumeRole
+      Description: Service role for EMR Studio
+      RoleName: !Sub ${AWS::StackName}-EMRStudioServiceRole
+
+  EMRStudioServiceRolePolicy: # from https://github.com/aws-samples/emr-studio-samples/blob/82c74e421602fff188fa8644406393f4b615ebf2/full_studio_dependencies.yml#L26
+    Type: "AWS::IAM::ManagedPolicy"
+    Properties:
+      ManagedPolicyName: !Sub ${AWS::StackName}-EMRStudioServiceRolePolicy
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+            - "ec2:AuthorizeSecurityGroupEgress"
+            - "ec2:AuthorizeSecurityGroupIngress"
+            - "ec2:CreateSecurityGroup"
+            - "ec2:DescribeSecurityGroups"
+            - "ec2:RevokeSecurityGroupEgress"
+            - "ec2:CreateNetworkInterface"
+            - "ec2:CreateNetworkInterfacePermission"
+            - "ec2:DeleteNetworkInterface"
+            - "ec2:DeleteNetworkInterfacePermission"
+            - "ec2:DescribeNetworkInterfaces"
+            - "ec2:ModifyNetworkInterfaceAttribute"
+            - "ec2:DescribeTags"
+            - "ec2:DescribeInstances"
+            - "ec2:DescribeSubnets"
+            - "ec2:DescribeVpcs"
+            - "elasticmapreduce:ListInstances"
+            - "elasticmapreduce:DescribeCluster"
+            - "elasticmapreduce:ListSteps"
+          Resource: "*"
+        - Effect: Allow
+          Action:
+            - "ec2:CreateTags"
+          Resource: "arn:aws:ec2:*:*:network-interface/*"
+          Condition:
+            ForAllValues:StringEquals:
+              aws:TagKeys:
+                - aws:elasticmapreduce:editor-id
+                - aws:elasticmapreduce:job-flow-id
+        - Effect: Allow
+          Action:
+            - "s3:PutObject"
+            - "s3:GetObject"
+            - "s3:GetEncryptionConfiguration"
+            - "s3:ListBucket"
+            - "s3:DeleteObject"
+          Resource:
+            - !Sub arn:aws:s3:::${Deployment}-studio-resources
+            - !Sub arn:aws:s3:::${Deployment}-studio-resources/*
+        # - Effect: Allow
+        #   Resource: "arn:aws:secretsmanager:*:*:secret:*"
+        #   Action:
+        #   - "secretsmanager:GetSecretValue"
+      Roles:
+        - !Ref EMRStudioServiceRole
+
+  EMRStudioUserRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: elasticmapreduce.amazonaws.com
+            Action: sts:AssumeRole
+      Description: Role EMR Studio users use to manage workspaces and EMR clusters.
+      RoleName: !Sub ${AWS::StackName}-EMRStudioUserRole
+
+  EMRStudioBasicUserPolicy: # from https://github.com/aws-samples/emr-studio-samples/blob/82c74e421602fff188fa8644406393f4b615ebf2/full_studio_dependencies.yml#L93
+    Type: "AWS::IAM::ManagedPolicy"
+    Properties:
+      Description: Basic access EMR Studio users need to use Studio (can attach workspace to existing clusters)
+      ManagedPolicyName: !Sub ${AWS::StackName}-EMRStudioBasicUserPolicy
+      Roles:
+      - !Ref EMRStudioUserRole
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Sid: AllowBasicActions
+          Effect: Allow
+          Resource: "*"
+          Action:
+          - "elasticmapreduce:CreateEditor"
+          - "elasticmapreduce:DescribeEditor"
+          - "elasticmapreduce:ListEditors"
+          - "elasticmapreduce:StartEditor"
+          - "elasticmapreduce:StopEditor"
+          - "elasticmapreduce:DeleteEditor"
+          - "elasticmapreduce:OpenEditorInConsole"
+          - "elasticmapreduce:AttachEditor"
+          - "elasticmapreduce:DetachEditor"
+          - "elasticmapreduce:CreateRepository"
+          - "elasticmapreduce:DescribeRepository"
+          - "elasticmapreduce:DeleteRepository"
+          - "elasticmapreduce:ListRepositories"
+          - "elasticmapreduce:LinkRepository"
+          - "elasticmapreduce:UnlinkRepository"
+          - "elasticmapreduce:DescribeCluster"
+          - "elasticmapreduce:ListInstanceGroups"
+          - "elasticmapreduce:ListBootstrapActions"
+          - "elasticmapreduce:ListClusters"
+          - "elasticmapreduce:ListSteps"
+          - "elasticmapreduce:CreatePersistentAppUI"
+          - "elasticmapreduce:DescribePersistentAppUI"
+          - "elasticmapreduce:GetPersistentAppUIPresignedURL"
+          # - "secretsmanager:CreateSecret"
+          # - "secretsmanager:ListSecrets"
+          - "emr-containers:DescribeVirtualCluster"
+          - "emr-containers:ListVirtualClusters"
+          - "emr-containers:DescribeManagedEndpoint"
+          - "emr-containers:ListManagedEndpoints"
+          - "emr-containers:CreateAccessTokenForManagedEndpoint"
+          - "emr-containers:DescribeJobRun"
+          - "emr-containers:ListJobRuns"
+        - Sid: PassRolePermission
+          Effect: Allow
+          Resource:
+          - !GetAtt EMRStudioServiceRole.Arn
+          Action: "iam:PassRole"
+        - Sid: S3ListPermission
+          Effect: Allow
+          Resource: "arn:aws:s3:::*" # TODO
+          Action:
+          - "s3:ListAllMyBuckets"
+          - "s3:ListBucket"
+          - "s3:GetBucketLocation"
+        - Sid: S3GetObjectPermission
+          Effect: Allow
+          Action:
+          - s3:GetObject
+          Resource:
+          - 'arn:aws:s3:::emr-studio-dependencies-emrstudiostoragebucket-*/*'
+          - Fn::Sub:
+            - 'arn:aws:s3:::${Bucket}/${Deployment}/emr/*'
+            - { Bucket: !ImportValue 'infra-buckets-LogBucket' }
+
+
+  EMRStudioIntermediateUserPolicy: # from https://github.com/aws-samples/emr-studio-samples/blob/82c74e421602fff188fa8644406393f4b615ebf2/full_studio_dependencies.yml#L159
+    Type: "AWS::IAM::ManagedPolicy"
+    Properties:
+      Description: >-
+        Intermediate access EMR Studio users need to use Studio (can attach workspace
+        to existing clusters + launch new ones with service catalog)
+      ManagedPolicyName: !Sub ${AWS::StackName}-EMRStudioIntermediateUserPolicy
+      Roles:
+      - !Ref EMRStudioUserRole
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Sid: AllowBasicActions
+          Effect: Allow
+          Resource: "*"
+          Action:
+          - "elasticmapreduce:CreateEditor"
+          - "elasticmapreduce:DescribeEditor"
+          - "elasticmapreduce:ListEditors"
+          - "elasticmapreduce:StartEditor"
+          - "elasticmapreduce:StopEditor"
+          - "elasticmapreduce:DeleteEditor"
+          - "elasticmapreduce:OpenEditorInConsole"
+          - "elasticmapreduce:AttachEditor"
+          - "elasticmapreduce:DetachEditor"
+          - "elasticmapreduce:CreateRepository"
+          - "elasticmapreduce:DescribeRepository"
+          - "elasticmapreduce:DeleteRepository"
+          - "elasticmapreduce:ListRepositories"
+          - "elasticmapreduce:LinkRepository"
+          - "elasticmapreduce:UnlinkRepository"
+          - "elasticmapreduce:DescribeCluster"
+          - "elasticmapreduce:ListInstanceGroups"
+          - "elasticmapreduce:ListBootstrapActions"
+          - "elasticmapreduce:ListClusters"
+          - "elasticmapreduce:ListSteps"
+          - "elasticmapreduce:CreatePersistentAppUI"
+          - "elasticmapreduce:DescribePersistentAppUI"
+          - "elasticmapreduce:GetPersistentAppUIPresignedURL"
+          # - "secretsmanager:CreateSecret"
+          # - "secretsmanager:ListSecrets"
+          - "emr-containers:DescribeVirtualCluster"
+          - "emr-containers:ListVirtualClusters"
+          - "emr-containers:DescribeManagedEndpoint"
+          - "emr-containers:ListManagedEndpoints"
+          - "emr-containers:CreateAccessTokenForManagedEndpoint"
+          - "emr-containers:DescribeJobRun"
+          - "emr-containers:ListJobRuns"
+        - Sid: AllowIntermediateActions
+          Effect: Allow
+          Resource: "*"
+          Action:
+          - "servicecatalog:DescribeProduct"
+          - "servicecatalog:DescribeProductView"
+          - "servicecatalog:DescribeProvisioningParameters"
+          - "servicecatalog:ProvisionProduct"
+          - "servicecatalog:SearchProducts"
+          - "servicecatalog:UpdateProvisionedProduct"
+          - "servicecatalog:ListProvisioningArtifacts"
+          - "servicecatalog:DescribeRecord"
+          - "cloudformation:DescribeStackResources"
+        - Sid: PassRolePermission
+          Effect: Allow
+          Resource:
+          - !GetAtt EMRStudioServiceRole.Arn
+          Action: "iam:PassRole"
+        - Sid: S3ListPermission
+          Effect: Allow
+          Resource: "arn:aws:s3:::*"
+          Action:
+          - "s3:ListAllMyBuckets"
+          - "s3:ListBucket"
+          - "s3:GetBucketLocation"
+        - Sid: S3GetObjectPermission
+          Effect: Allow
+          Action:
+          - s3:GetObject
+          Resource:
+          - 'arn:aws:s3:::emr-studio-dependencies-emrstudiostoragebucket-*/*'
+          - Fn::Sub:
+            - 'arn:aws:s3:::${Bucket}/${Deployment}/emr/*'
+            - { Bucket: !ImportValue 'infra-buckets-LogBucket' }
+
+  ## EMR Roles ##
+
+  EMRInstanceRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Path: /
+      RoleName: !Sub ${AWS::StackName}-EMRInstanceRole
+      Policies:
+      - PolicyName: EmrBasicAccess
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Effect: Allow
+            Action:
+            - ec2:Describe*
+            - elasticmapreduce:Describe*
+            - elasticmapreduce:ListBootstrapActions
+            - elasticmapreduce:ListClusters
+            - elasticmapreduce:ListInstanceGroups
+            - elasticmapreduce:ListInstances
+            - elasticmapreduce:ListSteps
+            Resource: '*'
+          - Effect: Allow
+            Action:
+              - s3:PutObject
+            Resource:
+              - Fn::Sub:
+                - 'arn:aws:s3:::${Bucket}/${Deployment}/emr/*'
+                - { Bucket: !ImportValue 'infra-buckets-LogBucket' }
+          - Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:ListBucket
+            Resource:
+              - 'arn:aws:s3:::amazon-reviews-pds'
+              - 'arn:aws:s3:::amazon-reviews-pds/*'
+
+  EMRInstanceRoleProfile:
+    Type: "AWS::IAM::InstanceProfile"
+    Properties:
+      Roles:
+        - !Ref EMRInstanceRole
+
+  EMRServiceRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: elasticmapreduce.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonElasticMapReduceRole
+      Path: /
+      RoleName: !Sub ${AWS::StackName}-EMRServiceRole
+
+  ## Service Catalog Roles ##
+
+  ServiceCatalogRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: servicecatalog.amazonaws.com
+            Action: sts:AssumeRole
+      Description: Role AWS Service Catalog uses to launch EMR clusters.
+      RoleName: !Sub ${AWS::StackName}-ServiceCatalogRole
+
+  ServiceCatalogRolePolicy:
+    Type: "AWS::IAM::ManagedPolicy"
+    Properties:
+      Roles:
+      - Ref: "ServiceCatalogRole"
+      ManagedPolicyName: !Sub ${AWS::StackName}-ServiceCatalogRolePolicy
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Resource: "*"
+          Action:
+          - "cloudformation:CreateStack"
+          - "cloudformation:DeleteStack"
+          - "cloudformation:DescribeStackEvents"
+          - "cloudformation:DescribeStacks"
+          - "cloudformation:GetTemplateSummary"
+          - "cloudformation:SetStackPolicy"
+          - "cloudformation:ValidateTemplate"
+          - "cloudformation:UpdateStack"
+          - "elasticmapreduce:RunJobFlow"
+          - "elasticmapreduce:DescribeCluster"
+          - "elasticmapreduce:TerminateJobFlows"
+          - "servicecatalog:*"
+        - Effect: Allow
+          Action:
+            - "iam:PassRole"
+          Resource:
+          - !GetAtt EMRInstanceRole.Arn
+          - !GetAtt EMRServiceRole.Arn
+        - Effect: Allow
+          Action:
+            - s3:GetObject
+          Resource: 'arn:aws:s3:::sc-*/*' # Servic Catalog reads EMR Cluster template from its own, undocumented bucket
+          Condition:
+            StringNotEquals:
+              s3:ResourceAccount: !Ref AWS::AccountId # to make sure we don't match resources on our account
+
+Outputs:
+  EMRInstanceRoleArn:
+    Value: !GetAtt EMRInstanceRoleProfile.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-EMRInstanceRoleArn'
+
+  EMRServiceRoleArn:
+    Value: !GetAtt EMRServiceRole.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-EMRServiceRoleArn'
+
+  EMRStudioServiceRoleArn:
+    Value: !GetAtt EMRStudioServiceRole.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-EMRStudioServiceRoleArn'
+
+  EMRStudioUserRoleArn:
+    Value: !GetAtt EMRStudioUserRole.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-EMRStudioUserRoleArn'
+
+  EMRStudioBasicUserPolicyArn:
+    Value: !Ref EMRStudioBasicUserPolicy
+    Export:
+      Name: !Sub '${AWS::StackName}-EMRStudioBasicUserPolicyArn'
+
+  EMRStudioIntermediateUserPolicyArn:
+    Value: !Ref EMRStudioIntermediateUserPolicy
+    Export:
+      Name: !Sub '${AWS::StackName}-EMRStudioIntermediateUserPolicyArn'
+
+  ServiceCatalogRoleArn:
+    Value: !GetAtt ServiceCatalogRole.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-ServiceCatalogRoleArn'

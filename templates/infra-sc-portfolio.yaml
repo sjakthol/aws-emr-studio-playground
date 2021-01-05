@@ -1,0 +1,66 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Amazon EMR Studio - AWS Service Catalog Portfolio for EMR clusters
+
+Parameters:
+  Deployment:
+    Type: String
+
+Resources:
+  # Based on https://github.com/aws-samples/emr-studio-samples/blob/82c74e421602fff188fa8644406393f4b615ebf2/full_studio_dependencies.yml#L421
+
+  ClusterTemplatePortfolio:
+    Type: AWS::ServiceCatalog::Portfolio
+    Properties:
+      DisplayName: !Sub ${AWS::StackName}-Portfolio
+      ProviderName: emr-studio
+      Tags:
+        - { Key: Name, Value: !Sub '${AWS::StackName}-Portfolio' }
+
+  ClusterTemplatePortfolioPrincipalAssociationForEndUser:
+    Type: AWS::ServiceCatalog::PortfolioPrincipalAssociation
+    Properties:
+      PrincipalARN:
+        Fn::ImportValue: !Sub ${Deployment}-infra-iam-EMRStudioUserRoleArn
+      PortfolioId: !Ref ClusterTemplatePortfolio
+      PrincipalType: IAM
+
+  SmallClusterProduct:
+    Type: AWS::ServiceCatalog::CloudFormationProduct
+    Properties:
+      Name: Small_EMR_Cluster
+      Description: Small EMR Cluster with a two nodes.
+      Owner: emr-studio
+      ProvisioningArtifactParameters:
+        - Description: Small EMR Cluster Template
+          Name: Small EMR Cluster Template
+          Info:
+            LoadTemplateFromURL: !Sub https://${AWS::AccountId}-${AWS::Region}-build-resources.s3-${AWS::Region}.amazonaws.com/${Deployment}/emr-cluster.yaml
+      Tags:
+        - { Key: Name, Value: !Sub '${AWS::StackName}-SmallClusterProduct' }
+
+  SmallClusterProductPortfolioAssociation:
+    Type: AWS::ServiceCatalog::PortfolioProductAssociation
+    Properties:
+      PortfolioId: !Ref ClusterTemplatePortfolio
+      ProductId: !Ref SmallClusterProduct
+
+  SmallClusterProductLaunchRoleConstraint:
+    Type: AWS::ServiceCatalog::LaunchRoleConstraint
+    Properties:
+      PortfolioId: !Ref ClusterTemplatePortfolio
+      ProductId: !Ref SmallClusterProduct
+      RoleArn:
+        Fn::ImportValue: !Sub ${Deployment}-infra-iam-ServiceCatalogRoleArn
+
+  PortfolioTagOption:
+    Type: AWS::ServiceCatalog::TagOption
+    Properties:
+      Active: true
+      Key: Deployment
+      Value: !Ref Deployment
+
+  PortfolioTagOptionAssociation:
+    Type: AWS::ServiceCatalog::TagOptionAssociation
+    Properties:
+      TagOptionId: !Ref PortfolioTagOption
+      ResourceId: !Ref ClusterTemplatePortfolio
