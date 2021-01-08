@@ -79,8 +79,7 @@ deploy-studio-session-mapping:
 	$(AWS_CMD) emr create-studio-session-mapping \
 		--studio-id $(STUDIO_ID) \
 		--identity-type $(IDENTITY_TYPE) \
-		--identity-name $(IDENTITY_NAME
-		) \
+		--identity-name $(IDENTITY_NAME) \
 		--session-policy-arn $(INTERMEDIATE_SESSION_POLICY)
 
 delete-studio:
