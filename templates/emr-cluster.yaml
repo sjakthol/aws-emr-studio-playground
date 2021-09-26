@@ -6,17 +6,19 @@ Parameters:
     Type: String
     # Default: DEPLOYMENT_DEFAULT
 
-  # EMR Studio sends the following bogus parameters to the stack when a
-  # cluster is provisioned via UI. We must expect to receive this but
-  # just ignore the value
-
+  # EMR Studio provides this value no matter what. We ignore it
   SubnetId:
     Type: String
     Default: ignore
 
   ClusterName:
     Type: String
-    Default: ignore
+    Default: default
+
+  ClusterCapacityUnits:
+    Type: Number
+    Description: Amount of compute capacity to provision to the cluster. 1 capacity unit = 4 vCPU and 8-32 GB of memory
+    Default: 1
 
 Resources:
   EMRCluster:
@@ -28,19 +30,27 @@ Resources:
         - Name: JupyterEnterpriseGateway
         - Name: Hive
       Instances:
-        # CoreInstanceGroup:
-        #   InstanceCount: 1
-        #   InstanceType: m4.large
-        #   Market: SPOT
+        CoreInstanceFleet:
+          InstanceTypeConfigs:
+            - { InstanceType: m5.xlarge }
+            - { InstanceType: c5.xlarge }
+            - { InstanceType: r5.xlarge }
+          Name: Core
+          TargetOnDemandCapacity: 0
+          TargetSpotCapacity: !Ref ClusterCapacityUnits
         Ec2SubnetId: !ImportValue infra-vpc-sn-public-a
         EmrManagedMasterSecurityGroup:
           Fn::ImportValue: !Sub ${Deployment}-infra-sg-MasterSecurityGroup
         EmrManagedSlaveSecurityGroup:
           Fn::ImportValue: !Sub ${Deployment}-infra-sg-WorkerSecurityGroup
-        MasterInstanceGroup:
-          InstanceCount: 1
-          InstanceType: m5.xlarge
-          Market: SPOT
+        MasterInstanceFleet:
+          InstanceTypeConfigs:
+            - { InstanceType: m5.xlarge }
+            - { InstanceType: c5.xlarge }
+            - { InstanceType: r5.xlarge }
+          Name: Driver
+          TargetOnDemandCapacity: 0
+          TargetSpotCapacity: 1
         # ServiceAccessSecurityGroup:
         #   Fn::ImportValue: !Sub ${Deployment}-infra-sg-ServiceAccessSecurityGroup
       JobFlowRole:
@@ -49,10 +59,10 @@ Resources:
         Fn::Sub:
         - 's3://${Bucket}/${Deployment}/emr/'
         - { Bucket: !ImportValue 'infra-buckets-LogBucket' }
-      Name: !Sub '${AWS::StackName}'
-      ReleaseLabel: emr-6.2.0
+      Name: !Sub '${Deployment}-emr-cluster-${ClusterName}'
+      ReleaseLabel: emr-6.4.0
       ServiceRole:
         Fn::ImportValue: !Sub ${Deployment}-infra-iam-EMRServiceRoleArn
       Tags:
-        - { Key: Name, Value: !Sub '${AWS::StackName}' }
+        - { Key: Name, Value: !Sub '${Deployment}-emr-cluster-${ClusterName}' }
       VisibleToAllUsers: true

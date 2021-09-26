@@ -22,15 +22,17 @@ make deploy-infra-sg
 # IAM Roles
 make deploy-infra-iam
 
-# Service Catalog
+# Service Catalog Portfolio for EMR Cluster creation
 make deploy-infra-sc-portfolio
 
-# EMR Studio
-make deploy-studio
+# EMR Studio with AWS SSO auth & access granted to single SSO user
+make deploy-studio-sso IDENTITY_TYPE=USER IDENTITY_NAME=<AWS SSO user name>
 
-# EMR Studio Session Policy Mapping (one or both; GROUP assignment might fail with AWS InternalFailure)
-make deploy-studio-session-mapping IDENTITY_TYPE=USER IDENTITY_NAME=<AWS SSO user name>
-make deploy-studio-session-mapping IDENTITY_TYPE=GROUP IDENTITY_NAME=<AWS SSO group name>
+# ... or with SSO auth & access granted to a group
+make deploy-studio-sso IDENTITY_TYPE=GROUP IDENTITY_NAME=<AWS SSO group name>
+
+# EMR Studio with AWS IAM auth
+make deploy-studio-iam
 
 # Optional: EMR Cluster for testing (or skip and provision one from Studio with Service Catalog)
 make deploy-emr-cluster
@@ -50,7 +52,7 @@ make delete-emr-cluster
 make delete-infra-sc-portfolio
 
 # EMR Studio
-make delete-studio
+make delete-studio-sso delete-studio-iam
 
 # IAM Roles
 make delete-infra-iam
@@ -67,7 +69,7 @@ make delete-infra-storage
 * infra-storage - Buckets for storing EMR Studio resources
 * infra-sg - Security Groups for EMR and EMR Studio
 * infra-iam - IAM roles and policies for EMR, EMR Studio and AWS Service Catalog
-  * EMRStudioServiceRole - Role EMR Studio Service uses to talk to other AWS Services.
+  * EMRStudioServiceRole - Role EMR Studio Service uses to create and modify resources needed to connect a Studio workspace to EMR clusters.
   * EMRStudioUserRole - Role EMR Studio users use to create and manage workspaces / clusters.
     * EMRStudioBasicUserPolicy - Session policy for EMR Studio users (attach to existing cluster)
     * EMRStudioIntermediateUserPolicy - Session policy for EMR Studio users (attach to existing cluster and provision new ones with Service Catalog)
@@ -75,7 +77,9 @@ make delete-infra-storage
   * EMRInstanceRole - Role EMR Cluster instances use to access AWS services (e.g. read data from S3).
   * ServiceCatalogRole - Role for AWS Service Catalog to provision EMR Clusters
 * infra-sc-portfolio - Service Catalog portfolio for EMR cluster templates
-  * Small_EMR_Cluster - Product for creating small EMR cluster from EMR Studio
+  * EMR-Cluster - Product for creating EMR cluster from EMR Studio
+* studio-sso - EMR Studio instance with AWS SSO authentication
+* studio-iam - EMR Studio instance with AWS IAM authentication
 * emr-cluster - Stack that creates an EMR cluster for testing
 
 ## Credits and References

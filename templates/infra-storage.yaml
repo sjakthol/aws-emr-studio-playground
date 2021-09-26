@@ -19,8 +19,10 @@ Resources:
           - Status: Enabled
             AbortIncompleteMultipartUpload:
               DaysAfterInitiation: 1
-          - Status: Enabled
             NoncurrentVersionExpirationInDays: 7
+      LoggingConfiguration:
+        DestinationBucketName: !ImportValue infra-buckets-LogBucket
+        LogFilePrefix: !Sub s3_access/bucket=${Deployment}-studio-resources/
       OwnershipControls:
         Rules:
           - ObjectOwnership: BucketOwnerPreferred

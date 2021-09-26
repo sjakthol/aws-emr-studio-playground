@@ -5,6 +5,14 @@ Parameters:
   Deployment:
     Type: String
 
+  ExtraPrincipal:
+    Type: String
+    Description: ARN of IAM Principal who should be able to use this portfolio.
+    Default: ''
+
+Conditions:
+  HasExtraPrincipal: !Not [!Equals [!Ref ExtraPrincipal, '']]
+
 Resources:
   # Based on https://github.com/aws-samples/emr-studio-samples/blob/82c74e421602fff188fa8644406393f4b615ebf2/full_studio_dependencies.yml#L421
 
@@ -14,7 +22,7 @@ Resources:
       DisplayName: !Sub ${AWS::StackName}-Portfolio
       ProviderName: emr-studio
       Tags:
-        - { Key: Name, Value: !Sub '${AWS::StackName}-Portfolio' }
+        - { Key: Name, Value: !Sub "${AWS::StackName}-Portfolio" }
 
   ClusterTemplatePortfolioPrincipalAssociationForEndUser:
     Type: AWS::ServiceCatalog::PortfolioPrincipalAssociation
@@ -24,31 +32,39 @@ Resources:
       PortfolioId: !Ref ClusterTemplatePortfolio
       PrincipalType: IAM
 
-  SmallClusterProduct:
+  ClusterTemplatePortfolioPrincipalAssociationForExtraPrincipal:
+    Type: AWS::ServiceCatalog::PortfolioPrincipalAssociation
+    Condition: HasExtraPrincipal
+    Properties:
+      PrincipalARN: !Ref ExtraPrincipal
+      PortfolioId: !Ref ClusterTemplatePortfolio
+      PrincipalType: IAM
+
+  ClusterProduct:
     Type: AWS::ServiceCatalog::CloudFormationProduct
     Properties:
-      Name: Small_EMR_Cluster
-      Description: Small EMR Cluster with a two nodes.
+      Name: !Sub ${Deployment}-EMR-Cluster
+      Description: !Sub EMR Cluster for ${Deployment} environment
       Owner: emr-studio
       ProvisioningArtifactParameters:
-        - Description: Small EMR Cluster Template
-          Name: Small EMR Cluster Template
+        - Description: !Sub EMR Cluster for ${Deployment} environment
+          Name: !Sub ${Deployment}-EMR-Cluster
           Info:
             LoadTemplateFromURL: !Sub https://${AWS::AccountId}-${AWS::Region}-build-resources.s3-${AWS::Region}.amazonaws.com/${Deployment}/emr-cluster.yaml
       Tags:
-        - { Key: Name, Value: !Sub '${AWS::StackName}-SmallClusterProduct' }
+        - { Key: Name, Value: !Sub "${AWS::StackName}-ClusterProduct" }
 
-  SmallClusterProductPortfolioAssociation:
+  ClusterProductPortfolioAssociation:
     Type: AWS::ServiceCatalog::PortfolioProductAssociation
     Properties:
       PortfolioId: !Ref ClusterTemplatePortfolio
-      ProductId: !Ref SmallClusterProduct
+      ProductId: !Ref ClusterProduct
 
-  SmallClusterProductLaunchRoleConstraint:
+  ClusterProductLaunchRoleConstraint:
     Type: AWS::ServiceCatalog::LaunchRoleConstraint
     Properties:
       PortfolioId: !Ref ClusterTemplatePortfolio
-      ProductId: !Ref SmallClusterProduct
+      ProductId: !Ref ClusterProduct
       RoleArn:
         Fn::ImportValue: !Sub ${Deployment}-infra-iam-ServiceCatalogRoleArn
 

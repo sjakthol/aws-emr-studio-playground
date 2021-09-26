@@ -1,0 +1,44 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Amazon EMR Studio - Studio instances with AWS SSO authentication
+
+Parameters:
+  Deployment:
+    Type: String
+
+  IdentityType:
+    Type: String
+  IdentityName:
+    Type: String
+
+Resources:
+  Studio:
+    Type: AWS::EMR::Studio
+    Properties:
+      AuthMode: SSO
+      DefaultS3Location: !Sub s3://${Deployment}-studio-resources/
+      Description: EMR Studio instance with AWS SSO Authentication
+      EngineSecurityGroupId:
+        Fn::ImportValue: !Sub ${Deployment}-infra-sg-EngineSecurityGroup
+      # IdpAuthUrl: String
+      # IdpRelayStateParameterName: String
+      Name: !Sub '${AWS::StackName}'
+      ServiceRole:
+        Fn::ImportValue: !Sub ${Deployment}-infra-iam-EMRStudioServiceRoleArn
+      SubnetIds:
+        - !ImportValue infra-vpc-sn-public-a
+      Tags:
+        - { Key: Name, Value: !Sub '${AWS::StackName}' }
+      UserRole:
+        Fn::ImportValue: !Sub ${Deployment}-infra-iam-EMRStudioUserRoleArn
+      VpcId: !ImportValue infra-vpc-VpcId
+      WorkspaceSecurityGroupId:
+        Fn::ImportValue: !Sub ${Deployment}-infra-sg-WorkspaceSecurityGroup
+
+  StudioSessionMapping:
+    Type: AWS::EMR::StudioSessionMapping
+    Properties:
+      IdentityName: !Ref IdentityName
+      IdentityType: !Ref IdentityType
+      SessionPolicyArn:
+        Fn::ImportValue: !Sub ${Deployment}-infra-iam-EMRStudioIntermediateUserPolicyArn
+      StudioId: !Ref Studio

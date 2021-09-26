@@ -1,0 +1,28 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Amazon EMR Studio - Studio instances with AWS IAM authentication
+
+Parameters:
+  Deployment:
+    Type: String
+
+Resources:
+  Studio:
+    Type: AWS::EMR::Studio
+    Properties:
+      AuthMode: IAM
+      DefaultS3Location: !Sub s3://${Deployment}-studio-resources/
+      Description: EMR Studio instance with AWS IAM Authentication
+      EngineSecurityGroupId:
+        Fn::ImportValue: !Sub ${Deployment}-infra-sg-EngineSecurityGroup
+      # IdpAuthUrl: String
+      # IdpRelayStateParameterName: String
+      Name: !Sub "${AWS::StackName}"
+      ServiceRole:
+        Fn::ImportValue: !Sub ${Deployment}-infra-iam-EMRStudioServiceRoleArn
+      SubnetIds:
+        - !ImportValue infra-vpc-sn-public-a
+      Tags:
+        - { Key: Name, Value: !Sub "${AWS::StackName}" }
+      VpcId: !ImportValue infra-vpc-VpcId
+      WorkspaceSecurityGroupId:
+        Fn::ImportValue: !Sub ${Deployment}-infra-sg-WorkspaceSecurityGroup
