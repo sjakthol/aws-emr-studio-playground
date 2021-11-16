@@ -1,11 +1,84 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: Amazon EMR Studio - IAM Roles and Policies
+Description: Amazon EMR Studio - EMR studio infrastructure (buckets, roles, SGs)
 
 Parameters:
-  Deployment:
+  DeploymentName:
     Type: String
 
 Resources:
+  ## EMR Studio Storage ##
+
+  StudioResources:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      BucketName: !Sub "${DeploymentName}-studio-resources"
+      LifecycleConfiguration:
+        Rules:
+          - Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 1
+            NoncurrentVersionExpirationInDays: 7
+      LoggingConfiguration:
+        DestinationBucketName: !ImportValue infra-buckets-LogBucket
+        LogFilePrefix: !Sub s3_access/bucket=${DeploymentName}-studio-resources/
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerPreferred
+      Tags:
+        - { Key: Name, Value: !Sub "${DeploymentName}-studio-resources" }
+      VersioningConfiguration:
+        Status: Enabled
+
+  ## EMR Studio Security Groups ##
+
+  # From https://github.com/aws-samples/emr-studio-samples/blob/82c74e421602fff188fa8644406393f4b615ebf2/full_studio_dependencies.yml#L322
+
+  WorkspaceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub ${AWS::StackName}-WorkspaceSecurityGroup
+      GroupDescription: Security group attached to EMR Studio workspace to communicate with cluster
+      Tags:
+        - { Key: Name, Value: !Sub "${AWS::StackName}-WorkspaceSecurityGroup" }
+      VpcId: !ImportValue infra-vpc-VpcId
+
+  EngineSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group attached to cluster master to communicate with workspace
+      GroupName: !Sub ${AWS::StackName}-EngineSecurityGroup
+      Tags:
+        - { Key: Name, Value: !Sub "${AWS::StackName}-EngineSecurityGroup" }
+      VpcId: !ImportValue infra-vpc-VpcId
+
+  EngineSecurityGroupIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: Allow inbound traffic to EngineSecurityGroup ( from notebook to cluster for port 18888 )
+      GroupId:
+        Ref: EngineSecurityGroup
+      SourceSecurityGroupId:
+        Ref: WorkspaceSecurityGroup
+      IpProtocol: tcp
+      FromPort: 18888
+      ToPort: 18888
+
+  WorkspaceSecurityGroupEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      Description: Allow outbound traffic from WorkspaceSecurityGroup ( from notebook to cluster for port 18888 )
+      GroupId:
+        Ref: WorkspaceSecurityGroup
+      DestinationSecurityGroupId:
+        Ref: EngineSecurityGroup
+      IpProtocol: tcp
+      FromPort: 18888
+      ToPort: 18888
+
   ## EMR Studio Roles ##
 
   EMRStudioServiceRole:
@@ -54,14 +127,11 @@ Resources:
             Resource:
               - arn:aws:ec2:*:*:instance/*
               - arn:aws:ec2:*:*:network-interface/*
+              - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:security-group/${EngineSecurityGroup}
               - Fn::Sub:
                   - arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:security-group/${SecurityGroupId}
                   - SecurityGroupId:
-                      Fn::ImportValue: !Sub ${Deployment}-infra-sg-EngineSecurityGroup
-              - Fn::Sub:
-                  - arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:security-group/${SecurityGroupId}
-                  - SecurityGroupId:
-                      Fn::ImportValue: !Sub ${Deployment}-infra-sg-MasterSecurityGroup
+                      Fn::ImportValue: !Sub ${DeploymentName}-infra-emr-MasterSecurityGroup
 
           # - Sid: AllowEC2SecurityGroupActionsWithEMRTags
           #   Effect: Allow
@@ -124,11 +194,7 @@ Resources:
               - Fn::Sub:
                   - arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:subnet/${SubnetId}
                   - SubnetId: !ImportValue infra-vpc-sn-public-a
-              - Fn::Sub:
-                  - arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:security-group/${SecurityGroupId}
-                  - SecurityGroupId:
-                      Fn::ImportValue: !Sub ${Deployment}-infra-sg-WorkspaceSecurityGroup
-
+              - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:security-group/${WorkspaceSecurityGroup}
           - Sid: AllowAddingTagsDuringEC2ENICreation
             Effect: Allow
             Action:
@@ -157,8 +223,8 @@ Resources:
               - s3:ListBucket
               - s3:DeleteObject
             Resource:
-              - !Sub arn:aws:s3:::${Deployment}-studio-resources
-              - !Sub arn:aws:s3:::${Deployment}-studio-resources/*
+              - !Sub arn:aws:s3:::${DeploymentName}-studio-resources
+              - !Sub arn:aws:s3:::${DeploymentName}-studio-resources/*
 
         # - Sid: AllowSecretsManagerReadOnlyActionsWithEMRTags
         #   Effect: Allow
@@ -249,7 +315,7 @@ Resources:
             Resource:
               - "arn:aws:s3:::emr-studio-dependencies-emrstudiostoragebucket-*/*"
               - Fn::Sub:
-                  - "arn:aws:s3:::${Bucket}/${Deployment}/emr/*"
+                  - "arn:aws:s3:::${Bucket}/${DeploymentName}/emr/*"
                   - { Bucket: !ImportValue "infra-buckets-LogBucket" }
 
   EMRStudioIntermediateUserPolicy: # from https://github.com/aws-samples/emr-studio-samples/blob/82c74e421602fff188fa8644406393f4b615ebf2/full_studio_dependencies.yml#L159
@@ -332,75 +398,8 @@ Resources:
             Resource:
               - arn:aws:s3:::emr-studio-dependencies-emrstudiostoragebucket-*/*
               - Fn::Sub:
-                  - arn:aws:s3:::${Bucket}/${Deployment}/emr/*
+                  - arn:aws:s3:::${Bucket}/${DeploymentName}/emr/*
                   - { Bucket: !ImportValue infra-buckets-LogBucket }
-
-  ## EMR Roles ##
-
-  EMRInstanceRole:
-    Type: "AWS::IAM::Role"
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: 2012-10-17
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: ec2.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
-      Path: /
-      RoleName: !Sub ${AWS::StackName}-EMRInstanceRole
-      Policies:
-        - PolicyName: EmrBasicAccess
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-              - Effect: Allow
-                Action:
-                  - ec2:Describe*
-                  - elasticmapreduce:Describe*
-                  - elasticmapreduce:ListBootstrapActions
-                  - elasticmapreduce:ListClusters
-                  - elasticmapreduce:ListInstanceGroups
-                  - elasticmapreduce:ListInstances
-                  - elasticmapreduce:ListSteps
-                Resource: "*"
-              - Effect: Allow
-                Action:
-                  - s3:PutObject
-                Resource:
-                  - Fn::Sub:
-                      - arn:aws:s3:::${Bucket}/${Deployment}/emr/*
-                      - { Bucket: !ImportValue infra-buckets-LogBucket }
-              - Effect: Allow
-                Action:
-                  - s3:GetObject
-                  - s3:ListBucket
-                Resource:
-                  - arn:aws:s3:::amazon-reviews-pds
-                  - arn:aws:s3:::amazon-reviews-pds/*
-
-  EMRInstanceRoleProfile:
-    Type: "AWS::IAM::InstanceProfile"
-    Properties:
-      Roles:
-        - !Ref EMRInstanceRole
-
-  EMRServiceRole:
-    Type: "AWS::IAM::Role"
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: 2012-10-17
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: elasticmapreduce.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AmazonElasticMapReduceRole
-      Path: /
-      RoleName: !Sub ${AWS::StackName}-EMRServiceRole
 
   ## Service Catalog Roles ##
 
@@ -445,8 +444,8 @@ Resources:
             Action:
               - "iam:PassRole"
             Resource:
-              - !GetAtt EMRInstanceRole.Arn
-              - !GetAtt EMRServiceRole.Arn
+              - Fn::ImportValue: !Sub ${DeploymentName}-infra-emr-EmrInstanceRole
+              - Fn::ImportValue: !Sub ${DeploymentName}-infra-emr-EmrServiceRole
           - Effect: Allow
             Action:
               - s3:GetObject
@@ -456,16 +455,6 @@ Resources:
                 s3:ExistingObjectTag/servicecatalog:provisioning: true
 
 Outputs:
-  EMRInstanceRoleArn:
-    Value: !GetAtt EMRInstanceRoleProfile.Arn
-    Export:
-      Name: !Sub ${AWS::StackName}-EMRInstanceRoleArn
-
-  EMRServiceRoleArn:
-    Value: !GetAtt EMRServiceRole.Arn
-    Export:
-      Name: !Sub ${AWS::StackName}-EMRServiceRoleArn
-
   EMRStudioServiceRoleArn:
     Value: !GetAtt EMRStudioServiceRole.Arn
     Export:
@@ -490,3 +479,15 @@ Outputs:
     Value: !GetAtt ServiceCatalogRole.Arn
     Export:
       Name: !Sub ${AWS::StackName}-ServiceCatalogRoleArn
+
+  EngineSecurityGroup:
+    Description: EMR Studio Security Group for EMR Cluster Master Nodes
+    Value: !GetAtt EngineSecurityGroup.GroupId
+    Export:
+      Name: !Sub "${AWS::StackName}-EngineSecurityGroup"
+
+  WorkspaceSecurityGroup:
+    Description: EMR Studio Security Group for EMR Studio Workspace
+    Value: !GetAtt WorkspaceSecurityGroup.GroupId
+    Export:
+      Name: !Sub "${AWS::StackName}-WorkspaceSecurityGroup"

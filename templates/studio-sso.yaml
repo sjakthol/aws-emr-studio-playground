@@ -1,8 +1,8 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: Amazon EMR Studio - Studio instances with AWS SSO authentication
+Description: Amazon EMR Studio - Studio instance with AWS SSO authentication
 
 Parameters:
-  Deployment:
+  DeploymentName:
     Type: String
 
   IdentityType:
@@ -15,24 +15,24 @@ Resources:
     Type: AWS::EMR::Studio
     Properties:
       AuthMode: SSO
-      DefaultS3Location: !Sub s3://${Deployment}-studio-resources/
+      DefaultS3Location: !Sub s3://${DeploymentName}-studio-resources/
       Description: EMR Studio instance with AWS SSO Authentication
       EngineSecurityGroupId:
-        Fn::ImportValue: !Sub ${Deployment}-infra-sg-EngineSecurityGroup
+        Fn::ImportValue: !Sub ${DeploymentName}-infra-studio-EngineSecurityGroup
       # IdpAuthUrl: String
       # IdpRelayStateParameterName: String
-      Name: !Sub '${AWS::StackName}'
+      Name: !Sub "${AWS::StackName}"
       ServiceRole:
-        Fn::ImportValue: !Sub ${Deployment}-infra-iam-EMRStudioServiceRoleArn
+        Fn::ImportValue: !Sub ${DeploymentName}-infra-studio-EMRStudioServiceRoleArn
       SubnetIds:
         - !ImportValue infra-vpc-sn-public-a
       Tags:
-        - { Key: Name, Value: !Sub '${AWS::StackName}' }
+        - { Key: Name, Value: !Sub "${AWS::StackName}" }
       UserRole:
-        Fn::ImportValue: !Sub ${Deployment}-infra-iam-EMRStudioUserRoleArn
+        Fn::ImportValue: !Sub ${DeploymentName}-infra-studio-EMRStudioUserRoleArn
       VpcId: !ImportValue infra-vpc-VpcId
       WorkspaceSecurityGroupId:
-        Fn::ImportValue: !Sub ${Deployment}-infra-sg-WorkspaceSecurityGroup
+        Fn::ImportValue: !Sub ${DeploymentName}-infra-studio-WorkspaceSecurityGroup
 
   StudioSessionMapping:
     Type: AWS::EMR::StudioSessionMapping
@@ -40,5 +40,5 @@ Resources:
       IdentityName: !Ref IdentityName
       IdentityType: !Ref IdentityType
       SessionPolicyArn:
-        Fn::ImportValue: !Sub ${Deployment}-infra-iam-EMRStudioIntermediateUserPolicyArn
+        Fn::ImportValue: !Sub ${DeploymentName}-infra-studio-EMRStudioIntermediateUserPolicyArn
       StudioId: !Ref Studio
