@@ -3,6 +3,7 @@ Description: Amazon EMR Studio - Sample Cluster
 
 Parameters:
   DeploymentName:
+    Description: Name of this EMR deployment (to isolate multiple deployments)
     Type: String
     # Default: DEPLOYMENT_DEFAULT
 
@@ -18,7 +19,7 @@ Parameters:
   ClusterCapacityUnits:
     Type: Number
     Description: Amount of compute capacity to provision to the cluster. 1 capacity unit = 4 vCPU and 8-32 GB of memory
-    Default: 2
+    Default: 1
 
   ReleaseLabel:
     Description: EMR release to use
@@ -33,10 +34,10 @@ Resources:
     Type: AWS::EMR::Cluster
     Properties:
       Applications:
-        - { Name: Spark }
-        - { Name: Zeppelin }
         - { Name: JupyterEnterpriseGateway }
         - { Name: Livy }
+        - { Name: Spark }
+        - { Name: Zeppelin }
       Configurations:
         - Fn::If:
             - IsEmr6
@@ -58,22 +59,44 @@ Resources:
       Instances:
         CoreInstanceFleet:
           InstanceTypeConfigs:
-            - { InstanceType: m5.2xlarge }
-            - { InstanceType: c5.2xlarge }
-            - { InstanceType: r5.2xlarge }
+            - { InstanceType: c5.xlarge }
+            - { InstanceType: c5a.xlarge }
+            - { InstanceType: c5d.xlarge }
+            - { InstanceType: m5.xlarge }
+            - { InstanceType: r5.xlarge }
+            - { InstanceType: r5d.xlarge }
+          LaunchSpecifications:
+              OnDemandSpecification:
+                AllocationStrategy: lowest-price
+              SpotSpecification:
+                AllocationStrategy: capacity-optimized
+                TimeoutAction: TERMINATE_CLUSTER
+                TimeoutDurationMinutes: 30
           Name: Core
           TargetOnDemandCapacity: 0
           TargetSpotCapacity: !Ref ClusterCapacityUnits
-        Ec2SubnetId: !ImportValue infra-vpc-sn-public-a
+        Ec2SubnetIds:
+          - !ImportValue infra-vpc-sn-public-a
+          - !ImportValue infra-vpc-sn-public-b
         EmrManagedMasterSecurityGroup:
           Fn::ImportValue: !Sub ${DeploymentName}-infra-emr-MasterSecurityGroup
         EmrManagedSlaveSecurityGroup:
           Fn::ImportValue: !Sub ${DeploymentName}-infra-emr-WorkerSecurityGroup
         MasterInstanceFleet:
           InstanceTypeConfigs:
-            - { InstanceType: m5.2xlarge }
-            - { InstanceType: c5.2xlarge }
-            - { InstanceType: r5.2xlarge }
+            - { InstanceType: c5.xlarge }
+            - { InstanceType: c5a.xlarge }
+            - { InstanceType: c5d.xlarge }
+            - { InstanceType: m5.xlarge }
+            - { InstanceType: r5.xlarge }
+            - { InstanceType: r5d.xlarge }
+          LaunchSpecifications:
+              OnDemandSpecification:
+                AllocationStrategy: lowest-price
+              SpotSpecification:
+                AllocationStrategy: capacity-optimized
+                TimeoutAction: TERMINATE_CLUSTER
+                TimeoutDurationMinutes: 30
           Name: Driver
           TargetOnDemandCapacity: 0
           TargetSpotCapacity: 1
