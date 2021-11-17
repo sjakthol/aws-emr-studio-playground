@@ -32,8 +32,8 @@ delete-%:
 # Customizations
 
 IDENTITY_ARN ?= $(shell $(AWS_CMD) iam get-role --role-name $$($(AWS_CMD) sts get-caller-identity --query Arn --output text | cut -d "/" -f 2) --output text --query Role.Arn)
-deploy-studio-sc-portfolio: EXTRA_PARAMETERS=ExtraPrincipal=$(IDENTITY_ARN)
-deploy-studio-sc-portfolio: upload-cluster-template
+deploy-infra-servicecatalog: EXTRA_PARAMETERS=ExtraPrincipal=$(IDENTITY_ARN)
+deploy-infra-servicecatalog: upload-cluster-template
 upload-cluster-template:
 	sed "s/# Default: DEPLOYMENT_DEFAULT/Default: $(DEPLOYMENT)/" templates/emr-cluster.yaml | \
 		$(AWS_CMD) s3 cp - s3://$(AWS_ACCOUNT_ID)-$(AWS_REGION)-build-resources/$(DEPLOYMENT)/emr-cluster.yaml

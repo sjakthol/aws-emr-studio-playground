@@ -62,6 +62,8 @@ Resources:
 
   ClusterProductLaunchRoleConstraint:
     Type: AWS::ServiceCatalog::LaunchRoleConstraint
+    DependsOn:
+      - ClusterProductPortfolioAssociation
     Properties:
       PortfolioId: !Ref ClusterTemplatePortfolio
       ProductId: !Ref ClusterProduct

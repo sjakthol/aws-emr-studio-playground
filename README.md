@@ -20,7 +20,7 @@ make deploy-infra-emr
 make deploy-infra-studio
 
 # Service Catalog Portfolio for EMR Cluster creation
-make deploy-studio-sc-portfolio
+make deploy-infra-servicecatalog
 
 # EMR Studio with AWS SSO auth & access granted to single SSO user
 make deploy-studio-sso IDENTITY_TYPE=USER IDENTITY_NAME=<AWS SSO user name>
@@ -46,7 +46,7 @@ Cleanup resources by deleting all resources in reverse order from deployment:
 make delete-emr-cluster
 
 # Service Catalog (!! delete any provisioned applications first !!)
-make delete-studio-sc-portfolio
+make delete-infra-servicecatalog
 
 # EMR Studio
 make -j delete-studio-sso delete-studio-iam
@@ -69,7 +69,7 @@ make delete-infra-emr
     * EMRStudioBasicUserPolicy - Session policy for EMR Studio users (attach to existing cluster)
     * EMRStudioIntermediateUserPolicy - Session policy for EMR Studio users (attach to existing cluster and provision new ones with Service Catalog)
   * ServiceCatalogRole - Role for AWS Service Catalog to provision EMR Clusters
-* studio-sc-portfolio - Service Catalog portfolio for EMR cluster templates
+* infra-servicecatalog - Service Catalog portfolio for EMR cluster templates
   * EMR-Cluster - Product for creating EMR cluster from EMR Studio
 * studio-sso - EMR Studio instance with AWS SSO authentication
 * studio-iam - EMR Studio instance with AWS IAM authentication
